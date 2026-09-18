@@ -125,6 +125,11 @@
       <button class="nav-btn focusable" id="btn-prev" tabindex="0">◀ Prev</button>
       <button class="nav-btn focusable" id="btn-next" tabindex="0">Next ▶</button>
     </div>
+
+    <button class="nav-btn focusable" id="btn-voice" tabindex="0" style="margin-top:8px;">🎤 Voice: Off</button>
+    <div id="voice-note" style="font-size:10.5px; color:#7fe9ff; opacity:0.7; margin-top:4px; line-height:1.4;">
+      Say "next" / "previous". Desktop browser only for now — MRBD glasses don't yet support mic access in Web Apps.
+    </div>
   </div>
 </div>
 
@@ -405,28 +410,54 @@
   }
 
   var lastEnterTime = 0;
+  var lastLeftTime = 0, lastRightTime = 0, lastDownTime = 0;
+  var DOUBLE_TAP_MS = 400;
 
   document.addEventListener('keydown', function (e) {
     var onViewport = document.activeElement === viewportEl;
     var onButton = document.activeElement && document.activeElement.classList.contains('nav-btn');
+    var now = performance.now();
 
     switch (e.key) {
       case DPAD.LEFT:
-        if (onViewport) rotY -= 0.18; else moveFocus('prev');
+        if (onViewport) {
+          // Double-tap Left on the viewport = jump straight to Prev step
+          // (single tap still rotates). This is the reliable path to
+          // reach the button row, since arrows are otherwise consumed
+          // entirely by rotate/zoom.
+          if (now - lastLeftTime < DOUBLE_TAP_MS) { goToStep(currentStep - 1); }
+          else { rotY -= 0.18; }
+          lastLeftTime = now;
+        } else {
+          moveFocus('prev');
+        }
         break;
       case DPAD.RIGHT:
-        if (onViewport) rotY += 0.18; else moveFocus('next');
+        if (onViewport) {
+          if (now - lastRightTime < DOUBLE_TAP_MS) { goToStep(currentStep + 1); }
+          else { rotY += 0.18; }
+          lastRightTime = now;
+        } else {
+          moveFocus('next');
+        }
         break;
       case DPAD.UP:
         if (onViewport) zoomDist = Math.max(2.2, zoomDist - 0.35); else moveFocus('prev');
         break;
       case DPAD.DOWN:
-        if (onViewport) zoomDist = Math.min(9, zoomDist + 0.35); else moveFocus('next');
+        if (onViewport) {
+          // Double-tap Down on the viewport moves focus onto the button
+          // row directly, as an explicit escape hatch from the viewport.
+          if (now - lastDownTime < DOUBLE_TAP_MS) { document.getElementById('btn-next').focus(); }
+          else { zoomDist = Math.min(9, zoomDist + 0.35); }
+          lastDownTime = now;
+        } else {
+          moveFocus('next');
+        }
         break;
       case DPAD.SELECT:
         if (onViewport) {
-          var now = performance.now();
-          if (now - lastEnterTime < 400) {
+          if (now - lastEnterTime < DOUBLE_TAP_MS) {
             autoRotate = !autoRotate;
             elAutoBadge.classList.toggle('on', autoRotate);
           } else {
@@ -439,6 +470,13 @@
         break;
       case DPAD.BACK:
         history.back();
+        break;
+      // Desktop-testing convenience shortcuts (not part of MRBD D-pad spec)
+      case 'n': case 'N':
+        goToStep(currentStep + 1);
+        break;
+      case 'p': case 'P':
+        goToStep(currentStep - 1);
         break;
       default:
         return;
@@ -461,6 +499,59 @@
   });
   renderer.domElement.addEventListener('pointerup', function () { dragging = false; });
   renderer.domElement.addEventListener('click', function () { toggleCurrentPart(); });
+
+  // =========================================================
+  // 7. VOICE CONTROL (desktop browser testing only --
+  //    Meta Ray-Ban Display Web Apps do not yet support
+  //    microphone access; this will silently fail to start
+  //    on real glasses hardware until that capability lands.)
+  // =========================================================
+  var elVoiceBtn = document.getElementById('btn-voice');
+  var SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recognizer = null;
+  var voiceOn = false;
+
+  if (!SpeechRecognitionAPI) {
+    elVoiceBtn.textContent = '🎤 Voice: Unavailable';
+    elVoiceBtn.classList.add('disabled');
+  } else {
+    recognizer = new SpeechRecognitionAPI();
+    recognizer.continuous = true;
+    recognizer.interimResults = false;
+    recognizer.lang = 'en-US';
+
+    recognizer.onresult = function (event) {
+      var last = event.results[event.results.length - 1];
+      var transcript = last[0].transcript.trim().toLowerCase();
+      if (/\b(next|forward)\b/.test(transcript)) {
+        goToStep(currentStep + 1);
+      } else if (/\b(previous|prev|back|before)\b/.test(transcript)) {
+        goToStep(currentStep - 1);
+      }
+    };
+
+    // Continuous recognition can auto-stop (browser-dependent);
+    // restart it automatically while the user has voice enabled.
+    recognizer.onend = function () {
+      if (voiceOn) {
+        try { recognizer.start(); } catch (e) { /* already running */ }
+      }
+    };
+
+    recognizer.onerror = function (e) {
+      console.warn('Speech recognition error:', e.error);
+    };
+
+    elVoiceBtn.addEventListener('click', function () {
+      voiceOn = !voiceOn;
+      elVoiceBtn.textContent = voiceOn ? '🎤 Voice: On' : '🎤 Voice: Off';
+      if (voiceOn) {
+        try { recognizer.start(); } catch (e) { /* no-op if already started */ }
+      } else {
+        recognizer.stop();
+      }
+    });
+  }
 
   window.addEventListener('load', function () { viewportEl.focus(); });
 })();
