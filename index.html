@@ -107,7 +107,7 @@
   <div id="viewport" class="focusable" tabindex="0">
     <div id="loading">Loading model…</div>
     <div id="autorotate-badge">● auto-rotate</div>
-    <div id="viewport-hint">← → rotate · ↑ ↓ zoom<br/>Enter: fit / remove part · double-Enter: auto-rotate</div>
+    <div id="viewport-hint">← → rotate · ↑ ↓ zoom<br/>Enter: next step · double-Enter: prev step<br/>double-← fit/remove · double-→ auto-rotate</div>
   </div>
 
   <div id="panel">
@@ -421,11 +421,8 @@
     switch (e.key) {
       case DPAD.LEFT:
         if (onViewport) {
-          // Double-tap Left on the viewport = jump straight to Prev step
-          // (single tap still rotates). This is the reliable path to
-          // reach the button row, since arrows are otherwise consumed
-          // entirely by rotate/zoom.
-          if (now - lastLeftTime < DOUBLE_TAP_MS) { goToStep(currentStep - 1); }
+          // Double-tap Left = fit/remove the current step's part.
+          if (now - lastLeftTime < DOUBLE_TAP_MS) { toggleCurrentPart(); }
           else { rotY -= 0.18; }
           lastLeftTime = now;
         } else {
@@ -434,8 +431,13 @@
         break;
       case DPAD.RIGHT:
         if (onViewport) {
-          if (now - lastRightTime < DOUBLE_TAP_MS) { goToStep(currentStep + 1); }
-          else { rotY += 0.18; }
+          // Double-tap Right = toggle auto-rotate.
+          if (now - lastRightTime < DOUBLE_TAP_MS) {
+            autoRotate = !autoRotate;
+            elAutoBadge.classList.toggle('on', autoRotate);
+          } else {
+            rotY += 0.18;
+          }
           lastRightTime = now;
         } else {
           moveFocus('next');
@@ -446,8 +448,8 @@
         break;
       case DPAD.DOWN:
         if (onViewport) {
-          // Double-tap Down on the viewport moves focus onto the button
-          // row directly, as an explicit escape hatch from the viewport.
+          // Double-tap Down moves focus onto the button row directly,
+          // as an explicit escape hatch from the viewport.
           if (now - lastDownTime < DOUBLE_TAP_MS) { document.getElementById('btn-next').focus(); }
           else { zoomDist = Math.min(9, zoomDist + 0.35); }
           lastDownTime = now;
@@ -457,11 +459,11 @@
         break;
       case DPAD.SELECT:
         if (onViewport) {
+          // Single Enter = Next step. Double Enter (quick) = Prev step.
           if (now - lastEnterTime < DOUBLE_TAP_MS) {
-            autoRotate = !autoRotate;
-            elAutoBadge.classList.toggle('on', autoRotate);
+            goToStep(currentStep - 1);
           } else {
-            toggleCurrentPart();
+            goToStep(currentStep + 1);
           }
           lastEnterTime = now;
         } else if (onButton) {
