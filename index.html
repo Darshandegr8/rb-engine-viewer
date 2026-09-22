@@ -122,7 +122,7 @@ button { font-family: inherit; padding: 0; margin: 0; }
 
   // The 3D bundle (three.js subset + app, ~144KB gzipped) is NOT on the critical path: the static shell
   // paints and the D-pad works first; the bundle is pulled right after `load`.
-  RB.loadApp = function () { return import('./app/main.js'); };
+  RB.loadApp = function () { return import('./main.js'); };
   function boot() { RB.loadApp().catch(function (e) { RB.ui(0, 'Failed to load 3D engine'); console.error(e); }); }
   if (document.readyState === 'complete') boot(); else addEventListener('load', boot, { once: true });
 

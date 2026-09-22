@@ -3,7 +3,7 @@
 var VERSION = 'rb-engine-shell-v1';
 var PRECACHE = [
   './', './index.html',
-  './app/main.js'          // lazy chunks (meshopt decoder) are cached at runtime on first use
+  './main.js'              // lazy chunks (meshopt decoder) are cached at runtime on first use
 ];
 
 self.addEventListener('install', function (e) {
